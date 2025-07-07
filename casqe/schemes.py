@@ -1,14 +1,26 @@
 # casqe/schemes.py
 
-from typing import List
+from typing import List,Dict
 from dataclasses import dataclass
 
 
 from dataclasses import dataclass, field
 from typing import List, Optional, Any
 
-@dataclass
 
+@dataclass
+class UnifiedQueryCandidate:
+    query: str
+    score: float
+    explanation: Optional[str] = None
+    origin: str = "basic"          # "basic" | "advanced"
+    
+    def __str__(self) -> str:
+        return f"[{self.origin}] {self.query}  (score={self.score:.3f})"
+    
+
+
+@dataclass
 class SearchQueryEnrichmentRequestObject:
     
     query: str
@@ -32,25 +44,35 @@ class SearchQueryEnrichmentResultObject:
     score: Optional[Any] = None 
 
 
-class SearchQueryEnrichmentOperation:
-    
-    queries: str
-    query_object: Optional[str] = None 
-    generation_result: Optional[Any] = None 
-    elapsed_time: Optional[Any] = None 
-
-
-
-
 @dataclass
-class UnifiedQueryCandidate:
-    query: str
-    score: float
-    explanation: Optional[str] = None
-    origin: str = "basic"          # "basic" | "advanced"
+class SearchQueryEnrichmentOperation:
+    objects: List[UnifiedQueryCandidate]  # ← The enriched query candidates
+    generation_results: List[Any] = field(default_factory=list)  # ← Both LLM calls
+    elapsed_time: Optional[float] = None
+    usage: Optional[Dict[str, Any]] = None  # ← Token usage, costs, etc.
     
-    def __str__(self) -> str:
-        return f"[{self.origin}] {self.query}  (score={self.score:.3f})"
+    def all_queries(self) -> List[str]:
+        """Extract just the query strings from all candidates."""
+        return [obj.query for obj in self.objects]
+    
+    def basic_queries(self) -> List[str]:
+        """Get only basic enrichment queries."""
+        return [obj.query for obj in self.objects if obj.origin == "basic"]
+    
+    def advanced_queries(self) -> List[str]:
+        """Get only advanced enrichment queries."""
+        return [obj.query for obj in self.objects if obj.origin == "advanced"]
+    
+    def __len__(self) -> int:
+        return len(self.objects)
+    
+    def __iter__(self):
+        return iter(self.objects)
+
+
+
+
+
 
 @dataclass
 class AdvancedEnrichedQueryCandidate:
