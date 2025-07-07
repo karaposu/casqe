@@ -4,17 +4,23 @@ from .myllmservice import MyLLMService
 from typing import List, Dict, Callable, Optional
 from dataclasses import dataclass, field
 
+
+
 def merge_candidates(
     basic: List[BasicEnrichedQueryCandidate],
     advanced: List[AdvancedEnrichedQueryCandidate],
     top_n: Optional[int] = None
 ) -> List[UnifiedQueryCandidate]:
+    """
+    Merge and deduplicate candidates from basic and advanced enrichment.
+    Returns unified list sorted by score.
+    """
     merged: dict[str, UnifiedQueryCandidate] = {}
 
     # ---------- basic ------------------------------------------------------
     for b in basic:
         q = b.combined
-        if not q:                     # skip filtered-out items
+        if not q:  # skip filtered-out items
             continue
         cand = UnifiedQueryCandidate(
             query=q,
@@ -27,8 +33,7 @@ def merge_candidates(
 
     # ---------- advanced ---------------------------------------------------
     for a in advanced:
-        # accept either "query" or "enriched_query"
-        q = a.query or getattr(a, "enriched_query", None)
+        q = a.query
         if not q:
             continue
         cand = UnifiedQueryCandidate(

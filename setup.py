@@ -6,7 +6,7 @@ import os
 
 setup(
     name='casqe',  # Package name
-    version='0.0.1',  # Version of your package
+    version='0.0.2',  # Version of your package
     author='Enes Kuzucu',  # Your name
     
     description='A module to enrich search queries using LLM intelligence',  # Short description
