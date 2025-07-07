@@ -45,7 +45,7 @@ class MyLLMService(BaseLLMService):
 
             Your job is to understand the task context and what user is trying to find via search engines and use the original query and 
 
-            generate {input_object.how_many} variations, usually as added relevant keywords. 
+            generate {input_object.how_many_advanced} variations, usually as added relevant keywords. 
 
 
              For each variation, assign:
@@ -75,7 +75,7 @@ class MyLLMService(BaseLLMService):
                     "explanation": "explanation about what types of information and links this query seeks to uncover", 
                     "score": 0.78
                 }}
-                // … repeat until you have {input_object.how_many} items
+                // … repeat until you have {input_object.how_many_advanced} items
                 ]
 
          
@@ -136,67 +136,6 @@ class MyLLMService(BaseLLMService):
             model="o3"
 
 
-        
-
-#         formatted_prompt= f"""
-#  Here is original search query from user  {input_object.query}
-
-# here is what user is trying to do {input_object.search_reason_context}
-
-# here is identifier context user explicitly set {input_object.identifier_context}
-
-# here are the text rules given by user {input_object.text_rules}
-
-
-#  Your job is to understand the task context and what user is trying to find via search engines and use the original query and generate
-# two list: "platforms" and "entities" and For each item in "platforms" and "entities", include:
-#    • "name": the platform or entity string  
-#    • "score": a float from 0.0–1.0 estimating its usefulness.
-
-#     "platforms" should return 20 website/app names most likely to host useful information w.r.t given context and original query
-#     "entities"  should return all canonical names, nicknames, project titles, and roles derived from the context.
-     
-    
-
-# Output (strict JSON, no commentary):
-# {
-#   "platforms": [
-#     { "name": "...", "score": 0.95 },
-#     { "name": "...", "score": 0.89 },
-#     …
-#   ],
-#   "entities": [
-#     { "name": "...", "score": 0.98 },
-#     { "name": "...", "score": 0.85 },
-#     …
-#   ]
-# }
-
-
-
-
-
-# Identifier-Strength rubric (generic, applies to any target):
-
-#     5 → Uniquely identifies the target on its own.  
-#         • Exact legal name, unique domain, ORCID/DOI, official ticker, etc.
-
-#     4 → Near-unique alternative ID.  
-#         • Well-known handle, brand nickname, product slug, corporate email alias.
-
-#     3 → Context-narrowing descriptor.  
-#         • Role + target, small-group product line, sector terms that often refer to the target.
-
-#     2 → Domain hint.  
-#         • Generic site or industry term that steers searches toward the right field/platform.
-
-#     1 → No identifier power.  
-#         • Broad, ambiguous words matching thousands of unrelated results.
-
-
-
- 
-# """
 
         formatted_prompt = f"""
 Here is original search query from user  {input_object.query}
@@ -218,7 +157,15 @@ Your job:
         "score"  : float 0.0–1.0 estimating usefulness for finding information,
 
 "identifiers" are the shortest textual expressions that distinguish the target sufficiently for the task at hand.
-"platforms" → **exactly 20** sites/apps most likely to host relevant information.  
+
+"platforms" → **exactly 20** sites/apps most likely to host relevant information about this specific target type. Consider what platforms are most relevant based on what you're researching:
+
+For PEOPLE: LinkedIn, GitHub, X, BlueSky, Instagram, TikTok, Reddit, personal websites, ResearchGate, company pages, 
+For PRODUCTS: manufacturer websites, Amazon, review sites (CNET, TechCrunch), YouTube, Reddit
+For COMPANIES: company website, LinkedIn company page, news sites, Crunchbase, financial platforms
+For TECHNOLOGIES: GitHub, Stack Overflow, documentation sites, developer blogs, conference sites
+For RESEARCH/ACADEMIC: Google Scholar, arXiv, university websites, ResearchGate, academic databases
+ 
 "entities"  → every canonical name, alias, project, role, etc. derived from the context.
 
 Output (strict JSON, no commentary):

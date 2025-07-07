@@ -16,7 +16,9 @@ class SearchQueryEnrichmentRequestObject:
     search_reason_context: Optional[str] = None 
     text_rules: Optional[str] = None 
     score_filter: Optional[Any] = None 
-    how_many: Optional[Any] = None 
+    how_many_basic: Optional[int] = 10        # ← New: limit for basic enrichment
+    how_many_advanced: Optional[int] = 10     # ← New: limit for advanced enrichment  
+    how_many_total: Optional[int] = None     # ← Optional overall limit
     use_thinking: Optional[Any] = None 
     use_basic_enrichment: bool = False
     use_advanced_enrichment: bool = False
@@ -52,20 +54,16 @@ class UnifiedQueryCandidate:
 
 @dataclass
 class AdvancedEnrichedQueryCandidate:
-    enriched_query: str          # ← renamed
+    query: str          # ← renamed
     score: float
     explanation: Optional[str] = None
 
     def __str__(self):
-        return f"{self.enriched_query}, score={self.score:.3f}"
+        return f"{self.query}, score={self.score:.3f}"
     __repr__ = __str__
   
 
     
-    def __str__(self) -> str:
-        return f"{self.query}, score={self.score:.3f}, explanation={self.explanation}"
-    __repr__ = __str__
-
     
 
 
@@ -84,15 +82,22 @@ class BasicEnrichedQueryCandidate:
     # ── derived (populated by combine) ─────────────────────────
     combined: str | None = field(init=False, default=None)
     combined_score: float | None = field(init=False, default=None)
-
+    
     # -----------------------------------------------------------
-    def combine(self) -> "BasicEnrichmentDataElement":
+    def combine(self) -> "BasicEnrichedQueryCandidate":
         """Generate the final query and score in one pass."""
         parts = [self.identifier]
-        if self.platform:
+        
+        # Only add platform if it's different from identifier
+        if self.platform and self.platform.lower() != self.identifier.lower():
             parts.append(self.platform)
+            
+        # Only add entity if it's different from identifier and platform
         if self.entity:
-            parts.append(self.entity)
+            entity_lower = self.entity.lower()
+            if (entity_lower != self.identifier.lower() and 
+                (not self.platform or entity_lower != self.platform.lower())):
+                parts.append(self.entity)
 
         # ready-made string
         self.combined = " ".join(parts)
@@ -109,12 +114,9 @@ class BasicEnrichedQueryCandidate:
 
     # friendly printout
     def __str__(self) -> str:
-        return (
-            f"{self.combined}, combined_scr={self.combined_score:.3f}, "
-            f"identifier={self.identifier}, platform={self.platform}, entity={self.entity}, "
-            f"identifier_scr={self.identifier_score:.2f}, "
-            f"platform_scr={self.platform_score}, entity_scr={self.entity_score}"
-        )
+        return f"{self.combined}, score={self.combined_score:.3f}"
 
     __repr__ = __str__
+
+   
 

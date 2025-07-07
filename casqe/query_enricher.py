@@ -115,60 +115,112 @@ class SearchQueryEnricher:
                         ).combine()
                     )
         return out
-        
-   
     
-    def run_advanced_enrichment(
-        self,
-        request_object,
-        min_spec: float = 0.75
-    ) -> List[str]:
-        
-        elems: list[AdvancedEnrichedQueryCandidate] = []
-        generation_result=self.llm. ask_llm_to_enrich(request_object)
-
-        if generation_result.success:
-            # print("------------")
-         
-
-            data= generation_result.content
-
-            for d in data:
-                aeqc= AdvancedEnrichedQueryCandidate(enriched_query=d.get("enriched_query"), 
-                                               explanation=d.get("explanation"),
-                                               score=d.get("score"), 
-                                               )
-                
-                elems.append(aeqc)
-
-        # elems =[]
-        # for e in elems:
-        #     print(e)
-
-        return elems
-
 
     def run_basic_enrichment(
         self,
         request_object,
         min_spec: float = 0.75
-    ) -> List[str]:
+    ) -> List[BasicEnrichedQueryCandidate]:
         
-
         data_dict = self.get_platforms_and_entities(request_object) 
-
-        print("data: ",data_dict)
-
-
+        
         if not data_dict["platforms"] or not data_dict["entities"]:
-            return []           # nothing useful returned by the LLM
+            return []
+        
+        elems = self.combine_for_basic_enrichment(data_dict)
+        
+        # Apply basic-specific limit
+        limit = request_object.how_many_basic or request_object.how_many or 10
+        if limit:
+            # Sort by score and take top N
+            elems.sort(key=lambda x: x.combined_score, reverse=True)
+            elems = elems[:limit]
+        
+        return elems
+
+    def run_advanced_enrichment(
+        self,
+        request_object,
+        min_spec: float = 0.75
+    ) -> List[AdvancedEnrichedQueryCandidate]:
+        
+        elems: list[AdvancedEnrichedQueryCandidate] = []
+        
+        # Modify the prompt to request specific number
+        limit = request_object.how_many_advanced or request_object.how_many or 10
+        
+        generation_result = self.llm.ask_llm_to_enrich(request_object)
+        
+        if generation_result.success:
+            data = generation_result.content
+            for d in data:
+                aeqc = AdvancedEnrichedQueryCandidate(
+                    query=d.get("enriched_query"), 
+                    explanation=d.get("explanation"),
+                    score=d.get("score"), 
+                )
+                elems.append(aeqc)
+        
+        # Apply advanced-specific limit (in case LLM returns more than requested)
+        if limit and len(elems) > limit:
+            elems.sort(key=lambda x: x.score, reverse=True)
+            elems = elems[:limit]
+        
+        return elems
+   
+    
+    # def run_advanced_enrichment(
+    #     self,
+    #     request_object,
+    #     min_spec: float = 0.75
+    # ) -> List[str]:
+        
+    #     elems: list[AdvancedEnrichedQueryCandidate] = []
+    #     generation_result=self.llm. ask_llm_to_enrich(request_object)
+
+    #     if generation_result.success:
+    #         # print("------------")
+         
+
+    #         data= generation_result.content
+
+    #         for d in data:
+    #             aeqc= AdvancedEnrichedQueryCandidate(query=d.get("enriched_query"), 
+    #                                            explanation=d.get("explanation"),
+    #                                            score=d.get("score"), 
+    #                                            )
+                
+    #             elems.append(aeqc)
+
+    #     # elems =[]
+    #     # for e in elems:
+    #     #     print(e)
+
+    #     return elems
+
+    
+    # def run_basic_enrichment(
+    #     self,
+    #     request_object,
+    #     min_spec: float = 0.75
+    # ) -> List[str]:
         
 
-        elems = self.combine_for_basic_enrichment(data_dict)
-        for e in elems:
-            print(e)
+    #     data_dict = self.get_platforms_and_entities(request_object) 
 
-        return elems
+    #     # print("data: ",data_dict)
+
+
+    #     if not data_dict["platforms"] or not data_dict["entities"]:
+    #         return []           # nothing useful returned by the LLM
+        
+
+    #     elems = self.combine_for_basic_enrichment(data_dict)
+    #     # for e in elems:
+    #     #     print(e)
+
+    #     return elems
 
 
     # def run_basic_enrichment(self, request_object):
@@ -179,30 +231,25 @@ class SearchQueryEnricher:
 
     
 
-    def enrich(self, request_object ):
-
-        # always define the two lists
-        basic_elems:  List[BasicEnrichedQueryCandidate]   = []
+    def enrich(self, request_object):
+        basic_elems: List[BasicEnrichedQueryCandidate] = []
         advanced_elems: List[AdvancedEnrichedQueryCandidate] = []
-            
-        print("inside enrich ")
+        
         if request_object.use_basic_enrichment:
-            basic_elems =self.run_basic_enrichment(request_object)
+            basic_elems = self.run_basic_enrichment(request_object)
             
         if request_object.use_advanced_enrichment:
+            advanced_elems = self.run_advanced_enrichment(request_object)
 
-            advanced_elems =self.run_advanced_enrichment(request_object)
-
-
+        # Use the new total limit parameter
         unified = merge_candidates(
-        basic=basic_elems,
-        advanced=advanced_elems,
-        top_n=request_object.how_many   # honour the caller’s limit
+            basic=basic_elems,
+            advanced=advanced_elems,
+            top_n=request_object.how_many_total
         )
-
-
-        return unified 
         
+        return unified
+            
 
            
 
@@ -218,14 +265,11 @@ if __name__ == "__main__":
                                        identifier_context= identifier_context, 
                                        search_reason_context=search_reason_context,
                                        text_rules= None,
-                                       how_many= 10,
-                                       use_thinking=False, 
-                                       use_basic_enrichment=False,
+                                       how_many_basic=20,        # ← Get 7 basic enriched queries
+                                       how_many_advanced=5,
+                                       use_thinking=True, 
+                                       use_basic_enrichment=True,
                                        use_advanced_enrichment=True)
-    
-
-    
-                           
     
     sqe = SearchQueryEnricher()
     
@@ -233,6 +277,7 @@ if __name__ == "__main__":
     
     print(" ")
     print(" ")
-    print(list_of_query_objects)
+    for e in list_of_query_objects:
+        print(e)
 
      
